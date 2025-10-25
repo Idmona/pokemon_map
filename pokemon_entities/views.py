@@ -1,8 +1,10 @@
 import folium
-import json
+
 
 from django.http import HttpResponseNotFound
 from django.shortcuts import render
+from django.utils.timezone import localtime
+from django.db.models import Q
 
 from pokemon_entities.models import Pokemon, PokemonEntity
 
@@ -28,9 +30,16 @@ def add_pokemon(folium_map, lat, lon, image_url=DEFAULT_IMAGE_URL):
 
 
 def show_all_pokemons(request):
+    current_time = localtime()
+
     folium_map = folium.Map(location=MOSCOW_CENTER, zoom_start=12)
 
-    for entity in PokemonEntity.objects.select_related('pokemon'):
+    active_entities = PokemonEntity.objects.filter(
+        Q(appeared_at__lte=current_time) | Q(appeared_at__isnull=True),
+        Q(disappeared_at__gte=current_time) | Q(disappeared_at__isnull=True),
+    ).select_related('pokemon')
+
+    for entity in active_entities:
         if entity.pokemon.image:
             image_url = request.build_absolute_uri(entity.pokemon.image.url)
         else:
@@ -63,24 +72,46 @@ def show_all_pokemons(request):
 
 
 def show_pokemon(request, pokemon_id):
-    with open('pokemon_entities/pokemons.json', encoding='utf-8') as database:
-        pokemons = json.load(database)['pokemons']
-
-    for pokemon in pokemons:
-        if pokemon['pokemon_id'] == int(pokemon_id):
-            requested_pokemon = pokemon
-            break
-    else:
-        return HttpResponseNotFound('<h1>Такой покемон не найден</h1>')
+    try:
+        pokemon = Pokemon.objects.get(id=pokemon_id)
+    except Pokemon.DoesNotExist:
+        return HttpResponseNotFound("<h1>Pokemon not found</h1>")
 
     folium_map = folium.Map(location=MOSCOW_CENTER, zoom_start=12)
-    for pokemon_entity in requested_pokemon['entities']:
-        add_pokemon(
-            folium_map, pokemon_entity['lat'],
-            pokemon_entity['lon'],
-            pokemon['img_url']
-        )
+    current_time = localtime()
 
-    return render(request, 'pokemon.html', context={
-        'map': folium_map._repr_html_(), 'pokemon': pokemon
-    })
+    entities = PokemonEntity.objects.filter(
+        Q(pokemon=pokemon) &
+        Q(appeared_at__lte=current_time) | Q(appeared_at__isnull=True),
+        Q(disappeared_at__gte=current_time) | Q(disappeared_at__isnull=True),
+    )
+
+    for entity in entities:
+        image_url = request.build_absolute_uri(pokemon.image.url) if pokemon.image else DEFAULT_IMAGE_URL
+        add_pokemon(folium_map, entity.latitude, entity.longitude, image_url)
+
+    pokemon_data = {
+        'pokemon_id': pokemon.id,
+        'title': pokemon.title,
+        'img_url': request.build_absolute_uri(pokemon.image.url) if pokemon.image else DEFAULT_IMAGE_URL,
+        'entities': [
+            {
+                'latitude': entity.latitude,
+                'longitude': entity.longitude,
+                'level': entity.level,
+                'health_points': entity.health_points,
+                'damage': entity.damage,
+                'defense': entity.defense,
+                'stamina': entity.stamina,
+            } for entity in entities
+        ]
+    }
+
+    return render(
+        request,
+        'pokemon.html',
+        context={
+            'map': folium_map._repr_html_(),
+            'pokemon': pokemon_data
+        }
+    )
