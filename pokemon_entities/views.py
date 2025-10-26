@@ -116,6 +116,14 @@ def show_pokemon(request, pokemon_id):
             'img_url' : request.build_absolute_uri(prev.image.url) if prev.image else DEFAULT_IMAGE_URL
         }
 
+    next_evolution = pokemon.next_evolutions.first()  # Берём первого потомка
+    if next_evolution:
+        pokemon_data['next_evolution'] = {
+            'pokemon_id': next_evolution.id,
+            'title_ru': next_evolution.title,
+            'img_url': request.build_absolute_uri(
+                next_evolution.image.url) if next_evolution.image else DEFAULT_IMAGE_URL
+        }
 
     return render(request,'pokemon.html',context={
             'map': folium_map._repr_html_(),
