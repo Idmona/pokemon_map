@@ -1,9 +1,7 @@
-from tabnanny import verbose
-
 from django.db import models
 
 class Pokemon(models.Model):
-    title = models.CharField(max_length=200, )
+    title = models.CharField(max_length=200, verbose_name="Название (рус.)")
     title_en = models.CharField(max_length=200, null=True, blank=True,verbose_name="Название (анг.)")
     title_jp = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название (яп.)")
     image = models.ImageField(null=True, blank=True, upload_to="pokemon_images", verbose_name="Изображение")
