@@ -81,9 +81,8 @@ def show_pokemon(request, pokemon_id):
     current_time = localtime()
 
     entities = PokemonEntity.objects.filter(
-        Q(pokemon=pokemon) &
-        Q(appeared_at__lte=current_time) | Q(appeared_at__isnull=True),
-        Q(disappeared_at__gte=current_time) | Q(disappeared_at__isnull=True),
+        (Q(pokemon=pokemon) & (Q(appeared_at__lte=current_time) | Q(appeared_at__isnull=True)))
+        & (Q(disappeared_at__gte=current_time) | Q(disappeared_at__isnull=True))
     )
 
     for entity in entities:
@@ -109,6 +108,14 @@ def show_pokemon(request, pokemon_id):
             } for entity in entities
         ]
     }
+    if pokemon.previous_evolution:
+        prev = pokemon.previous_evolution
+        pokemon_data['previous_evolution'] = {
+            'pokemon_id': prev.id,
+            'title_ru': prev.title,
+            'img_url' : request.build_absolute_uri(prev.image.url) if prev.image else DEFAULT_IMAGE_URL
+        }
+
 
     return render(request,'pokemon.html',context={
             'map': folium_map._repr_html_(),
